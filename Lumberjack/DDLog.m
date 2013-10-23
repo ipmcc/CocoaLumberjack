@@ -18,9 +18,9 @@
  * 
 **/
 
-#if ! __has_feature(objc_arc)
-#warning This file must be compiled with ARC. Use -fobjc-arc flag (or convert project to ARC).
-#endif
+//#if ! __has_feature(objc_arc)
+//#warning This file must be compiled with ARC. Use -fobjc-arc flag (or convert project to ARC).
+//#endif
 
 // We probably shouldn't be using DDLog() statements within the DDLog implementation.
 // But we still want to leave our log statements for any future debugging,
@@ -281,8 +281,8 @@ static unsigned int numProcessors;
 	{
 		va_start(args, format);
 		
-		NSString *logMsg = [[NSString alloc] initWithFormat:format arguments:args];
-		DDLogMessage *logMessage = [[DDLogMessage alloc] initWithLogMsg:logMsg
+		NSString *logMsg = [[[NSString alloc] initWithFormat:format arguments:args] autorelease];
+		DDLogMessage *logMessage = [[[DDLogMessage alloc] initWithLogMsg:logMsg
 		                                                          level:level
 		                                                           flag:flag
 		                                                        context:context
@@ -290,7 +290,7 @@ static unsigned int numProcessors;
 		                                                       function:function
 		                                                           line:line
 		                                                            tag:tag
-		                                                        options:0];
+		                                                        options:0] autorelease];
 		
 		[self queueLogMessage:logMessage asynchronously:asynchronous];
 		
@@ -311,8 +311,8 @@ static unsigned int numProcessors;
 {
 	if (format)
 	{
-		NSString *logMsg = [[NSString alloc] initWithFormat:format arguments:args];
-		DDLogMessage *logMessage = [[DDLogMessage alloc] initWithLogMsg:logMsg
+		NSString *logMsg = [[[NSString alloc] initWithFormat:format arguments:args] autorelease];
+		DDLogMessage *logMessage = [[[DDLogMessage alloc] initWithLogMsg:logMsg
 		                                                          level:level
 		                                                           flag:flag
 		                                                        context:context
@@ -320,7 +320,7 @@ static unsigned int numProcessors;
 		                                                       function:function
 		                                                           line:line
 		                                                            tag:tag
-		                                                        options:0];
+		                                                        options:0] autorelease];
 		
 		[self queueLogMessage:logMessage asynchronously:asynchronous];
 	}
@@ -748,9 +748,9 @@ NSString *DDExtractFileNameWithoutExtension(const char *filePath, BOOL copy)
 	
 	if (copy)
 	{
-		return [[NSString alloc] initWithBytes:subStr
+		return [[[NSString alloc] initWithBytes:subStr
 		                                length:subLen
-		                              encoding:NSUTF8StringEncoding];
+		                              encoding:NSUTF8StringEncoding] autorelease];
 	}
 	else
 	{
@@ -758,10 +758,10 @@ NSString *DDExtractFileNameWithoutExtension(const char *filePath, BOOL copy)
 		// Specifically, we don't need to waste time copying the string.
 		// We can just tell NSString to point to a range within the string literal.
 		
-		return [[NSString alloc] initWithBytesNoCopy:subStr
+		return [[[NSString alloc] initWithBytesNoCopy:subStr
 		                                      length:subLen
 		                                    encoding:NSUTF8StringEncoding
-		                                freeWhenDone:NO];
+		                                freeWhenDone:NO] autorelease];
 	}
 }
 
@@ -777,12 +777,14 @@ NSString *DDExtractFileNameWithoutExtension(const char *filePath, BOOL copy)
 {
 	if ((self = [super init]))
 	{
-		logger = aLogger;
+		logger = [aLogger retain];
 		
 		if (aLoggerQueue) {
 			loggerQueue = aLoggerQueue;
 			#if !OS_OBJECT_USE_OBJC
 			dispatch_retain(loggerQueue);
+            #else
+            [loggerQueue retain];
 			#endif
 		}
 	}
@@ -791,14 +793,19 @@ NSString *DDExtractFileNameWithoutExtension(const char *filePath, BOOL copy)
 
 + (DDLoggerNode *)nodeWithLogger:(id <DDLogger>)logger loggerQueue:(dispatch_queue_t)loggerQueue
 {
-	return [[DDLoggerNode alloc] initWithLogger:logger loggerQueue:loggerQueue];
+	return [[[DDLoggerNode alloc] initWithLogger:logger loggerQueue:loggerQueue] autorelease];
 }
 
 - (void)dealloc
 {
+    [logger release];
+    
 	#if !OS_OBJECT_USE_OBJC
 	if (loggerQueue) dispatch_release(loggerQueue);
+    #else
+    [loggerQueue release];
 	#endif
+    [super dealloc];
 }
 
 @end
@@ -834,7 +841,7 @@ static char *dd_str_copy(const char *str)
 {
 	if ((self = [super init]))
 	{
-		logMsg     = msg;
+		logMsg     = [msg copy];
 		logLevel   = level;
 		logFlag    = flag;
 		logContext = context;
@@ -875,14 +882,14 @@ static char *dd_str_copy(const char *str)
 		
 		queueLabel = dd_str_copy(dispatch_queue_get_label(currentQueue));
 		
-		threadName = [[NSThread currentThread] name];
+		threadName = [[[NSThread currentThread] name] copy];
 	}
 	return self;
 }
 
 - (NSString *)threadID
 {
-	return [[NSString alloc] initWithFormat:@"%x", machThreadID];
+	return [[[NSString alloc] initWithFormat:@"%x", machThreadID] autorelease];
 }
 
 - (NSString *)fileName
@@ -895,7 +902,7 @@ static char *dd_str_copy(const char *str)
 	if (function == NULL)
 		return nil;
 	else
-		return [[NSString alloc] initWithUTF8String:function];
+		return [[[NSString alloc] initWithUTF8String:function] autorelease];
 }
 
 - (void)dealloc
@@ -908,6 +915,12 @@ static char *dd_str_copy(const char *str)
 	
 	if (queueLabel)
 		free(queueLabel);
+
+    [logMsg release];
+	[timestamp release];
+	[threadName release];
+
+    [super dealloc];
 }
 
 @end
@@ -956,7 +969,10 @@ static char *dd_str_copy(const char *str)
 {
 	#if !OS_OBJECT_USE_OBJC
 	if (loggerQueue) dispatch_release(loggerQueue);
+    #else
+    [loggerQueue release];
 	#endif
+    [super dealloc];
 }
 
 - (void)logMessage:(DDLogMessage *)logMessage

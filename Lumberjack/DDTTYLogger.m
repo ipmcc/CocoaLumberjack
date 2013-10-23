@@ -13,9 +13,9 @@
  * https://github.com/robbiehanson/CocoaLumberjack/wiki/GettingStarted
 **/
 
-#if ! __has_feature(objc_arc)
-#warning This file must be compiled with ARC. Use -fobjc-arc flag (or convert project to ARC).
-#endif
+//#if ! __has_feature(objc_arc)
+//#warning This file must be compiled with ARC. Use -fobjc-arc flag (or convert project to ARC).
+//#endif
 
 // We probably shouldn't be using DDLog() statements within the DDLog implementation.
 // But we still want to leave our log statements for any future debugging,
@@ -132,8 +132,6 @@ static BOOL isaXcodeColorTTY;
 static NSArray *codes_fg = nil;
 static NSArray *codes_bg = nil;
 static NSArray *colors   = nil;
-
-static DDTTYLogger *sharedInstance;
 
 /**
  * Initializes the colors array, as well as the codes_fg and codes_bg arrays, for 16 color mode.
@@ -759,21 +757,11 @@ static DDTTYLogger *sharedInstance;
 	return bestIndex;
 }
 
-/**
- * The runtime sends initialize to each class in a program exactly one time just before the class,
- * or any class that inherits from it, is sent its first message from within the program. (Thus the
- * method may never be invoked if the class is not used.) The runtime sends the initialize message to
- * classes in a thread-safe manner. Superclasses receive this message before their subclasses.
- *
- * This method may also be called directly (assumably by accident), hence the safety mechanism.
-**/
-+ (void)initialize
++ (DDTTYLogger *)sharedInstance
 {
-	static BOOL initialized = NO;
-	if (!initialized)
-	{
-		initialized = YES;
-		
+    static DDTTYLogger* sharedInstance = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
 		char *term = getenv("TERM");
 		if (term)
 		{
@@ -792,7 +780,7 @@ static DDTTYLogger *sharedInstance;
 		{
 			// Xcode does NOT natively support colors in the Xcode debugging console.
 			// You'll need to install the XcodeColors plugin to see colors in the Xcode console.
-			// 
+			//
 			// PS - Please read the header file before diving into the source code.
 			
 			char *xcode_colors = getenv("XcodeColors");
@@ -807,24 +795,16 @@ static DDTTYLogger *sharedInstance;
 		NSLogInfo(@"DDTTYLogger: isaXcodeColorTTY: %@", (isaXcodeColorTTY ? @"YES" : @"NO"));
 		
 		sharedInstance = [[DDTTYLogger alloc] init];
-	}
-}
-
-+ (DDTTYLogger *)sharedInstance
-{
-	return sharedInstance;
+        
+    });
+    return sharedInstance;
 }
 
 - (id)init
 {
-	if (sharedInstance != nil)
-	{
-		return nil;
-	}
-	
 	if ((self = [super init]))
 	{
-		calendar = [NSCalendar autoupdatingCurrentCalendar];
+		calendar = [[NSCalendar autoupdatingCurrentCalendar] retain];
 		
 		calendarUnitFlags = 0;
 		calendarUnitFlags |= NSYearCalendarUnit;
@@ -836,24 +816,36 @@ static DDTTYLogger *sharedInstance;
 		
 		// Initialze 'app' variable (char *)
 		
-		appName = [[NSProcessInfo processInfo] processName];
+		appName = [[[NSProcessInfo processInfo] processName] copy];
 		
 		appLen = [appName lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
 		app = (char *)malloc(appLen + 1);
-		if (app == NULL) return nil;
+		if (app == NULL)
+        {
+            [self autorelease];
+            return nil;
+        }
 		
 		[appName getCString:app maxLength:(appLen+1) encoding:NSUTF8StringEncoding];
 		
 		// Initialize 'pid' variable (char *)
 		
-		processID = [NSString stringWithFormat:@"%i", (int)getpid()];
+		processID = [[NSString stringWithFormat:@"%i", (int)getpid()] copy];
 		
 		pidLen = [processID lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
 		pid = (char *)malloc(pidLen + 1);
-		if (pid == NULL) return nil;
+		if (pid == NULL)
+        {
+            [self autorelease];
+            return nil;
+        }
 		
 		BOOL processedID = [processID getCString:pid maxLength:(pidLen+1) encoding:NSUTF8StringEncoding];
-		if (NO == processedID) return nil;
+		if (NO == processedID)
+        {
+            [self autorelease];
+            return nil;
+        }
 		
 		// Initialize color stuff
 		
@@ -862,6 +854,16 @@ static DDTTYLogger *sharedInstance;
 		colorProfilesDict = [[NSMutableDictionary alloc] initWithCapacity:8];
 	}
 	return self;
+}
+
+- (void)dealloc
+{
+    [calendar release];
+    [appName release];
+	[processID release];
+	[colorProfilesArray release];
+	[colorProfilesDict release];
+    [super dealloc];
 }
 
 - (void)loadDefaultColorProfiles
@@ -939,10 +941,10 @@ static DDTTYLogger *sharedInstance;
 	dispatch_block_t block = ^{ @autoreleasepool {
 		
 		DDTTYLoggerColorProfile *newColorProfile =
-		    [[DDTTYLoggerColorProfile alloc] initWithForegroundColor:txtColor
+		    [[[DDTTYLoggerColorProfile alloc] initWithForegroundColor:txtColor
 		                                             backgroundColor:bgColor
 		                                                        flag:mask
-		                                                     context:ctxt];
+		                                                     context:ctxt] autorelease];
 		
 		NSLogInfo(@"DDTTYLogger: newColorProfile: %@", newColorProfile);
 		
@@ -988,10 +990,10 @@ static DDTTYLogger *sharedInstance;
 	dispatch_block_t block = ^{ @autoreleasepool {
 		
 		DDTTYLoggerColorProfile *newColorProfile =
-		    [[DDTTYLoggerColorProfile alloc] initWithForegroundColor:txtColor
+		    [[[DDTTYLoggerColorProfile alloc] initWithForegroundColor:txtColor
 		                                             backgroundColor:bgColor
 		                                                        flag:0
-		                                                     context:0];
+		                                                     context:0] autorelease];
 		
 		NSLogInfo(@"DDTTYLogger: newColorProfile: %@", newColorProfile);
 		
@@ -1491,5 +1493,13 @@ static DDTTYLogger *sharedInstance;
 			@"<DDTTYLoggerColorProfile: %p mask:%i ctxt:%i fg:%u,%u,%u bg:%u,%u,%u fgCode:%@ bgCode:%@>",
 			self, mask, context, fg_r, fg_g, fg_b, bg_r, bg_g, bg_b, fgCodeRaw, bgCodeRaw];
 }
+
+- (void)dealloc
+{
+    [fgCodeRaw release];
+    [bgCodeRaw release];
+    [super dealloc];
+}
+
 
 @end

@@ -15,9 +15,9 @@
  * https://github.com/robbiehanson/CocoaLumberjack/wiki/GettingStarted
 **/
 
-#if ! __has_feature(objc_arc)
-#warning This file must be compiled with ARC. Use -fobjc-arc flag (or convert project to ARC).
-#endif
+//#if ! __has_feature(objc_arc)
+//#warning This file must be compiled with ARC. Use -fobjc-arc flag (or convert project to ARC).
+//#endif
 
 // We probably shouldn't be using DDLog() statements within the DDLog implementation.
 // But we still want to leave our log statements for any future debugging,
@@ -85,6 +85,8 @@
 - (void)dealloc
 {
 	[self removeObserver:self forKeyPath:@"maximumNumberOfLogFiles"];
+    [_logsDirectory release];
+    [super dealloc];
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -304,7 +306,7 @@
 	
 	for (NSString *filePath in unsortedLogFilePaths)
 	{
-		DDLogFileInfo *logFileInfo = [[DDLogFileInfo alloc] initWithFilePath:filePath];
+		DDLogFileInfo *logFileInfo = [[[DDLogFileInfo alloc] initWithFilePath:filePath] autorelease];
 		
 		[unsortedLogFileInfos addObject:logFileInfo];
 	}
@@ -373,12 +375,13 @@
 	CFUUIDRef uuid = CFUUIDCreate(NULL);
 	
 	CFStringRef fullStr = CFUUIDCreateString(NULL, uuid);
-	NSString *result = (__bridge_transfer NSString *)CFStringCreateWithSubstring(NULL, fullStr, CFRangeMake(0, 6));
+//	NSString *result = (__bridge_transfer NSString *)CFStringCreateWithSubstring(NULL, fullStr, CFRangeMake(0, 6));
+	NSString *result = (NSString *)CFStringCreateWithSubstring(NULL, fullStr, CFRangeMake(0, 6));
 	
 	CFRelease(fullStr);
 	CFRelease(uuid);
 	
-	return result;
+	return [result autorelease];
 }
 
 /**
@@ -441,6 +444,12 @@
 	return self;
 }
 
+- (void)dealloc
+{
+    [dateFormatter release];
+    [super dealloc];
+}
+
 - (NSString *)formatLogMessage:(DDLogMessage *)logMessage
 {
 	NSString *dateAndTime = [dateFormatter stringFromDate:(logMessage->timestamp)];
@@ -458,7 +467,7 @@
 
 - (id)init
 {
-	DDLogFileManagerDefault *defaultLogFileManager = [[DDLogFileManagerDefault alloc] init];
+	DDLogFileManagerDefault *defaultLogFileManager = [[[DDLogFileManagerDefault alloc] init] autorelease];
 	
 	return [self initWithLogFileManager:defaultLogFileManager];
 }
@@ -470,7 +479,7 @@
 		maximumFileSize = DEFAULT_LOG_MAX_FILE_SIZE;
 		rollingFrequency = DEFAULT_LOG_ROLLING_FREQUENCY;
 		
-		logFileManager = aLogFileManager;
+		logFileManager = [aLogFileManager retain];
 		
 		formatter = [[DDLogFileFormatterDefault alloc] init];
 	}
@@ -481,12 +490,18 @@
 {
 	[currentLogFileHandle synchronizeFile];
 	[currentLogFileHandle closeFile];
+    [currentLogFileHandle release];
+    [currentLogFileInfo release];
 	
 	if (rollingTimer)
 	{
 		dispatch_source_cancel(rollingTimer);
 		rollingTimer = NULL;
 	}
+    
+    [formatter release];
+    [logFileManager release];
+    [super dealloc];
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -912,7 +927,7 @@
 
 + (id)logFileWithPath:(NSString *)aFilePath
 {
-	return [[DDLogFileInfo alloc] initWithFilePath:aFilePath];
+	return [[[DDLogFileInfo alloc] initWithFilePath:aFilePath] autorelease];
 }
 
 - (id)initWithFilePath:(NSString *)aFilePath
@@ -924,6 +939,11 @@
 	return self;
 }
 
+- (void)dealloc
+{
+    [filePath release];
+    [super dealloc];
+}
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #pragma mark Standard Info
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

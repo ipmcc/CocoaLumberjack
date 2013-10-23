@@ -12,46 +12,35 @@
  * https://github.com/robbiehanson/CocoaLumberjack/wiki/GettingStarted
 **/
 
-#if ! __has_feature(objc_arc)
-#warning This file must be compiled with ARC. Use -fobjc-arc flag (or convert project to ARC).
-#endif
+//#if ! __has_feature(objc_arc)
+//#warning This file must be compiled with ARC. Use -fobjc-arc flag (or convert project to ARC).
+//#endif
 
 
 @implementation DDASLLogger
 
-static DDASLLogger *sharedInstance;
-
-/**
- * The runtime sends initialize to each class in a program exactly one time just before the class,
- * or any class that inherits from it, is sent its first message from within the program. (Thus the
- * method may never be invoked if the class is not used.) The runtime sends the initialize message to
- * classes in a thread-safe manner. Superclasses receive this message before their subclasses.
- *
- * This method may also be called directly (assumably by accident), hence the safety mechanism.
-**/
-+ (void)initialize
++ (id)allocWithZone:(struct _NSZone *)zone
 {
-	static BOOL initialized = NO;
-	if (!initialized)
-	{
-		initialized = YES;
-		
-		sharedInstance = [[DDASLLogger alloc] init];
-	}
+    return nil;
+}
+
++ (id)allocWithZonePrivate:(struct _NSZone *)zone
+{
+    return [super allocWithZone: zone];
 }
 
 + (DDASLLogger *)sharedInstance
 {
+    static DDASLLogger *sharedInstance;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        sharedInstance = [[DDASLLogger allocWithZonePrivate: nil] init];
+    });
 	return sharedInstance;
 }
 
 - (id)init
 {
-	if (sharedInstance != nil)
-	{
-		return nil;
-	}
-	
 	if ((self = [super init]))
 	{
 		// A default asl client is provided for the main thread,
