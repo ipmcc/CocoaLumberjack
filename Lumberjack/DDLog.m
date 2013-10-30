@@ -6,6 +6,7 @@
 #import <mach/host_info.h>
 #import <libkern/OSAtomic.h>
 
+#undef ddLogLevel
 
 /**
  * Welcome to Cocoa Lumberjack!
